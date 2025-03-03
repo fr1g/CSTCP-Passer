@@ -26,40 +26,42 @@ listener.Listen(10);
 
 List<EndPoint> connected = [];
 
-Console.WriteLine($"Now started listening on the xxx");
+List<Socket> comm = [];
 
-Socket communication = listener.Accept();
+Console.WriteLine($"Now started listening on the local.\n");
+
+Socket communication;// = listener.Accept();
 
 while (true)
 {
-    // communication = listener.Accept();
-    Console.WriteLine($"inbound client: {communication.RemoteEndPoint}");
-    if (connected.IndexOf(communication.RemoteEndPoint!) > 0)
+    var acc = listener.Accept();
+    comm.Add(acc);
+    Console.WriteLine($"inbound client: {acc.RemoteEndPoint}");
+    
+    foreach (var communicate in comm)
     {
-        Console.WriteLine("inbound but busy.");
-        communication.Send(Encoding.UTF8.GetBytes($"Server received msg:::BUSY"));
-        communication.Close();
-        continue;
-    }
-    else
-    {
-        if(connected.IndexOf(communication.RemoteEndPoint!) == -1) 
-            connected.Add(communication.RemoteEndPoint!);
+        if (comm.IndexOf(communicate) >= 1)
+        {
+            communicate.Send(Encoding.UTF8.GetBytes($"Server received msg:::BUSY"));
+            continue;
+        }
+        var buff = new byte [1024 * 1024];
+        int parse = communicate.Receive(buff);
+        var content = Encoding.UTF8.GetString(buff, 0, parse);
         
+        if (content == "/end")
+        {
+            communicate.Send(Encoding.UTF8.GetBytes($"Server msg:::CLOSING_CONNECTION"));
+            communicate.Close();
+            Console.WriteLine($"Closed connection from {communicate.RemoteEndPoint}");
+            comm.Remove(communicate);
+        }
+        
+        Console.WriteLine($"Msg::client >>> {content}");
+        communicate.Send(Encoding.UTF8.GetBytes($"Server received msg OK <<< {content}"));
+        // communication.Disconnect(true);
+        GC.Collect();
     }
-    var buff = new byte [1024 * 1024];
-    int parse = communication.Receive(buff);
-    var content = Encoding.UTF8.GetString(buff, 0, parse);
-    if (content == "/end")
-    {
-        connected.Remove(communication.RemoteEndPoint!);
-        communication.Send(Encoding.UTF8.GetBytes($"Server msg:::CLOSING_CONNECTION"));
-        communication.Close();
-        continue;
-    }
-    Console.WriteLine($"Msg::client >>> {content}");
-    communication.Send(Encoding.UTF8.GetBytes($"Server received msg OK <<< {content}"));
-    // communication.Disconnect(true);
     GC.Collect();
 }
 
