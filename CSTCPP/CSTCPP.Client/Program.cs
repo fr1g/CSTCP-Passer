@@ -32,7 +32,15 @@ while (ip == null || endpoint == null || client == null)
     }
 }
 
-Console.WriteLine("\nReady.\n");
+Console.WriteLine("\nReady. Trying connection...");
+try
+{
+
+}
+catch (Exception ex)
+{
+    Console.Error.WriteLine("");
+}
 
 while (true)
 {
@@ -42,18 +50,20 @@ while (true)
         read = "default_empty_message";
     try
     {
-        client.Send(Encoding.UTF8.GetBytes(read));
-        var buff = new byte [1024 * 1024];
-        int parse = client.Receive(buff);
-        var res = Encoding.UTF8.GetString(buff, 0, parse);
-        Console.WriteLine($"from server >>> {res}\n");
+        Send(read);
     }
     catch (Exception ex)
     {
         Console.Error.WriteLine($"\n===ERR CRIT===\nconnection lost.\n{ex}\n=== EC ===\n");
         goto starting;
     }
+}
 
-
-    
+void Send(string read)
+{
+    client.Send(Encoding.UTF8.GetBytes(read));
+    var buff = new byte [1024 * 1024];
+    int parse = client.Receive(buff);
+    var res = Encoding.UTF8.GetString(buff, 0, parse);
+    Console.WriteLine($"from server >>> {res}\n");
 }

@@ -34,34 +34,40 @@ Socket communication;// = listener.Accept();
 
 while (true)
 {
-    var acc = listener.Accept();
+    var acc = await listener.AcceptAsync();
     comm.Add(acc);
     Console.WriteLine($"inbound client: {acc.RemoteEndPoint}");
-    
-    foreach (var communicate in comm)
+
+    var th = new Thread(() =>
     {
-        if (comm.IndexOf(communicate) >= 1)
+        foreach (var communicate in comm)
         {
-            communicate.Send(Encoding.UTF8.GetBytes($"Server received msg:::BUSY"));
-            continue;
+            if (comm.IndexOf(communicate) >= 1)
+            {
+                communicate.Send(Encoding.UTF8.GetBytes($"Server received msg:::BUSY"));
+                continue;
+            }
+
+            var buff = new byte [1024 * 1024];
+            int parse = communicate.Receive(buff);
+            var content = Encoding.UTF8.GetString(buff, 0, parse);
+
+            if (content == "/end")
+            {
+                communicate.Send(Encoding.UTF8.GetBytes($"Server msg:::CLOSING_CONNECTION"));
+                communicate.Close();
+                Console.WriteLine($"Closed connection from {communicate.RemoteEndPoint}");
+                comm.Remove(communicate);
+                Thread.CurrentThread.Abort();
+            }
+
+            Console.WriteLine($"Msg::client >>> {content}");
+            communicate.Send(Encoding.UTF8.GetBytes($"Server received msg OK <<< {content}"));
+            // communication.Disconnect(true);
+            GC.Collect();
         }
-        var buff = new byte [1024 * 1024];
-        int parse = communicate.Receive(buff);
-        var content = Encoding.UTF8.GetString(buff, 0, parse);
-        
-        if (content == "/end")
-        {
-            communicate.Send(Encoding.UTF8.GetBytes($"Server msg:::CLOSING_CONNECTION"));
-            communicate.Close();
-            Console.WriteLine($"Closed connection from {communicate.RemoteEndPoint}");
-            comm.Remove(communicate);
-        }
-        
-        Console.WriteLine($"Msg::client >>> {content}");
-        communicate.Send(Encoding.UTF8.GetBytes($"Server received msg OK <<< {content}"));
-        // communication.Disconnect(true);
-        GC.Collect();
-    }
-    GC.Collect();
+    });
+    th.Start();
+    // GC.Collect();
 }
 
