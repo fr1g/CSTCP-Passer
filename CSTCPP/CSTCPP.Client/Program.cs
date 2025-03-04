@@ -6,6 +6,9 @@ using System.Text;
 
 starting:
 Console.WriteLine("CSTCPP CLIENT\nAutomatically using port 11451 as server's port.");
+#if DEBUG
+Console.WriteLine("debug mode");
+#endif
 IPAddress? ip = null;
 Socket? client = null;
 IPEndPoint? endpoint = null;
@@ -22,6 +25,7 @@ while (ip == null || endpoint == null || client == null)
         client = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         
         client!.Connect(endpoint);
+        break;
     }
     catch (Exception ex)
     {
@@ -33,37 +37,84 @@ while (ip == null || endpoint == null || client == null)
 }
 
 Console.WriteLine("\nReady. Trying connection...");
-try
-{
+var triage = (await SendTimeout("", client, true, 4001));
+if(triage == ":::ERR")
+    goto starting;
+else Console.WriteLine(triage);
 
-}
-catch (Exception ex)
-{
-    Console.Error.WriteLine("");
-}
-
+var isEnding = false;
 while (true)
 {
+    if (isEnding &&
+        (await SendTimeout("@check_connection", client, isMaintain: true)).Contains(
+            ":::ERR"))
+    {
+        Console.WriteLine("Connection shut. Farewell!");
+        return;
+    }
+        
+    
     Console.Write("<<< ");
+    
     string read = Console.ReadLine() ?? "default_empty_message";
-    if (read == "") 
-        read = "default_empty_message";
+    
+    #if DEBUG
+    Console.WriteLine($"{isEnding}   |{read}");
+    #endif
+    
+    switch (read)
+    {
+        case "":
+            read = "default_empty_message";
+            break;
+        case "/end":
+            isEnding = true;
+            break;
+        case "/forceend":
+            Console.WriteLine("Force End was Called on the Client.");
+            return;
+    }
+    var answer = await SendTimeout(read, client);
+    if(answer == ":::ERR") 
+        goto starting;
+    else Console.WriteLine(answer);
+}
+
+async Task<string> SendTimeout(string read, Socket soc, bool isKnockDoor = false, int timeout = 4000, bool isMaintain = false)
+{
+    Task<string> triage;
+    #if DEBUG
+    timeout = 4001;
+    Console.WriteLine($"Debug mode made wait time changed: {timeout}");
+    #endif
     try
     {
-        Send(read);
+        var delay = Task.Delay(timeout);
+        triage = Send(isKnockDoor ? "@clientKnocksDoor" : read, soc);
+        var completed = await Task.WhenAny(triage, delay);
+        if (completed == delay) 
+            throw new Exception(isKnockDoor ? "Timed out while knocking door." : "Time out.");
+        else
+        {
+            var result = await triage;
+            if (result.Contains("msg:::BUSY"))
+                return ("server is busy.\n");
+            else return (isKnockDoor ? ">>> SERVER READY \n" : result);
+        }
     }
     catch (Exception ex)
     {
-        Console.Error.WriteLine($"\n===ERR CRIT===\nconnection lost.\n{ex}\n=== EC ===\n");
-        goto starting;
+        if(!isMaintain)
+            Console.Error.WriteLine($"The connection is not usable: {ex.Message}\n");
+        return ":::ERR";
     }
 }
 
-void Send(string read)
+async Task<string> Send(string read, Socket c)
 {
-    client.Send(Encoding.UTF8.GetBytes(read));
+    await c.SendAsync(Encoding.UTF8.GetBytes(read));
     var buff = new byte [1024 * 1024];
-    int parse = client.Receive(buff);
+    var parse = await c.ReceiveAsync(buff);
     var res = Encoding.UTF8.GetString(buff, 0, parse);
-    Console.WriteLine($"from server >>> {res}\n");
+    return $"from server >>> {res}\n";
 }
