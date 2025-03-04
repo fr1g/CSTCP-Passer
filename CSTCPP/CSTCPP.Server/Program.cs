@@ -1,25 +1,37 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
+Console.WriteLine("CSTCPP Server side...\nThis program will bind on port: 11451, timeout: 4");
 var sockets = new ConcurrentDictionary<string, Socket>();
 var semaphore = new SemaphoreSlim(10); 
 List<string> queue = []; // queue reference (controlling the order)
 
 await StartListeningAsync();
 
+
+
 async Task StartListeningAsync()
 {
     var listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-    listener.Bind(new System.Net.IPEndPoint(System.Net.IPAddress.Any, 11451));
+    try
+    {
+        listener.Bind(new IPEndPoint(IPAddress.Any, 11451));
+    }
+    catch
+    {
+        Console.WriteLine("Failed to bind on the port [11451] !");
+        return;
+    }
     listener.Listen(100);
-    Console.WriteLine("Server started. Waiting for connections...");
+    Console.WriteLine($"Server started on {(IPEndPoint)listener.LocalEndPoint!}. Waiting for connections...\n");
 
     while (true)
     {
         var clientSocket = await listener.AcceptAsync();
-        Console.WriteLine($"New connection from {clientSocket.RemoteEndPoint}");
+        Console.WriteLine($"\nInbound {clientSocket.RemoteEndPoint}");
         
         sockets.TryAdd(clientSocket.RemoteEndPoint!.ToString()!, clientSocket);
         queue.Add(clientSocket!.RemoteEndPoint!.ToString()!);
@@ -61,7 +73,8 @@ async Task HandleClientAsync(Socket clientSocket)
             {
                 Console.WriteLine($"Client disconnected: {clientSocket.RemoteEndPoint}");
                 queue.Remove(ip);
-                break;
+                sockets.TryRemove(new KeyValuePair<string, Socket>(ip, clientSocket));
+                return; // force shut
             }
 
             var content = Encoding.UTF8.GetString(buffer, 0, bytesRead);

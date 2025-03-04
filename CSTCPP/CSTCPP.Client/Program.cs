@@ -40,7 +40,7 @@ Console.WriteLine("\nReady. Trying connection...");
 var triage = (await SendTimeout("", client, true, 4001));
 if(triage == ":::ERR")
     goto starting;
-else Console.WriteLine(triage);
+else Console.WriteLine($">>> {triage}");
 
 var isEnding = false;
 while (true)
@@ -99,7 +99,7 @@ async Task<string> SendTimeout(string read, Socket soc, bool isKnockDoor = false
             var result = await triage;
             if (result.Contains("msg:::BUSY"))
                 return ("server is busy.\n");
-            else return (isKnockDoor ? ">>> SERVER READY \n" : result);
+            else return (isKnockDoor ? "SERVER READY \n" : result);
         }
     }
     catch (Exception ex)
